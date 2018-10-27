@@ -1,0 +1,85 @@
+\documentclass[12pt]{report}
+
+\usepackage{setspace}
+%\setstretch{2.5} % for custom spacing
+\setlength{\parindent}{4em}
+
+\usepackage{fancyvrb}
+\usepackage{graphicx}
+\usepackage{geometry}
+
+\geometry{letterpaper, portrait, margin=1in}
+
+%%%Title Page%%%
+\title{
+  Lab 03
+\bigbreak BINBCD
+}
+
+\author{
+{\normalsize
+\begin{tabular}{l r r}
+ & \textbf{Brian Weber} & \textbf{Zachary Davis}\\
+\textbf{Category} & --- & zachdav@uga.edu\\
+\hline
+In-lab Work & 50 & 50\\
+Lab Report Writing & 50 & 50\\
+\end{tabular}
+}
+}
+
+\date{\bigskip
+\today}
+%%%%%%%%%%%%
+
+
+\begin{document}
+\maketitle
+
+\section*{Question 5-7}
+	\paragraph{}
+		Convert the 16-bit number in \$D500-\$D501 and each of the eight bit numbers in \$DB00-\$DB04
+		to decimal and enter the information in the table below.  Repeat with a number between 00FF-0FFF.
+		FInally, repeat this with a number between 0FFF-FFFF.
+		
+		\author{
+		{\normalsize
+		\begin{center}
+		\begin{tabular}{l r r r r r r}
+		& \textbf{} & \textbf{}\\
+		\textbf{\$D500-\$D501 in Binary} & \textbf{\$D500-\$D501 in Hex} & \textbf{\$DB00} & \textbf{\$DB01}
+		& \textbf{\$DB02} & \textbf{\$DB03} & \textbf{\$DB04}\\
+		\hline
+		187 & BB & 0 & 0 & 1 & 8 & 7\\
+		4090 & FFA & 0 & 4 & 0 & 9 & 0\\
+		56797 & DDDD & 5 & 6 & 7 & 9 & 7\\
+		\end{tabular}
+		\end{center}
+		}
+		}
+
+\section*{Question 8}
+	\paragraph{•}
+		Choose a number between 10,000 and 65,535 to be stored in \$D500 and \$D501.  "Execute" the program 
+		by hand and write down the impact of each instruction on the registers and memory locations involved in it.
+		\vspace{1cm}
+		\\Depending on the decimal or hexadecimal value you choose will effect when exactly in the program the 
+		value of certain flags will be 1 or 0.  What we definitely know is that every program will effect the Zero, 
+		Carry, and Overflow CPU registers.  
+	
+\section*{Question 9}
+	\paragraph{}
+		What do you think the program is doing?
+		\vspace{1cm}
+		\\This program is taking the value stored in \$D500 and converting it as the higher byte to decimal and
+		taking the value stored in \$D501 as the lower byte to decimal.  In other words with \$D500 being the lower
+		byte and \$D501 being the lower byte the value stored in them is converted from hexidecimal to decimal.
+	
+\section*{Question 10}
+	\paragraph{}
+		What do you think that XGDX is doing?
+		\vspace{1cm}
+		\\This instruction swaps the value in accumulator D with the value in the X register.  This is a more effective
+		and efficient way to do this conversion than constantly pushing and pulling from a stack.
+		
+\end{document}

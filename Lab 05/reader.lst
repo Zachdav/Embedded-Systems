@@ -1,0 +1,140 @@
+
+AS11, an absolute assembler for Motorola MCU's, version 1.2h
+
+ffb8                    OUTA     EQU  $FFB8
+ffc7                    OUTSTRG  EQU  $FFC7
+ffca                    OUTSTRGO EQU  $FFCA
+ffc4                    OUTCRLF  EQU  $FFC4
+ffb5                    OUTRHLF  EQU  $FFB5
+ffcd                    INCHAR   EQU  $FFCD
+                        
+1004                    PORTB    EQU  $1004
+100a                    PORTE    EQU  $100A
+0023                    ADCTL    EQU  %00100011
+1034                    DIGI     EQU  $1034
+                        
+0000 45 6e 74 65 72 20  PROMPT:  FCC  "Enter a Character To Take A Measurement: "
+     61 20 43 68 61 72
+     61 63 74 65 72 20
+     54 6f 20 54 61 6b
+     65 20 41 20 4d 65
+     61 73 75 72 65 6d
+     65 6e 74 3a 20
+0029 04                          FCB  $04
+002a 20 44 65 67 72 65  RESULT:  FCC  " Degrees Celcius"
+     65 73 20 43 65 6c
+     63 69 75 73
+003a 04                          FCB  $04
+                        
+d000                             ORG  $D000
+d000                    TEMP     RMB  2
+                        
+d002                             ORG  $D002
+d002 be df ff                    LDS  $DFFF
+d005 86 23                       LDAA #ADCTL
+d007 b7 10 30                    STAA $1030
+d00a ce 00 00           MAIN:    LDX  #PROMPT
+d00d bd ff c7                    JSR  OUTSTRG
+d010 bd ff cd                    JSR  INCHAR
+d013 b6 10 34                    LDAA DIGI
+                                 ;LDAA #127
+d016 c6 28                       LDAB #40
+d018 3d                          MUL
+d019 fd d0 00                    STD  TEMP
+d01c bd d0 b9                    JSR  BINBCD
+d01f bd d0 a3                    JSR  PRINT
+d022 bd d0 29                    JSR  LED
+d025 bd d0 0a                    JSR  MAIN
+d028 3f                          SWI
+                                 END
+                                 
+d029 fc d0 00           LED:     LDD  TEMP
+d02c ce 00 0d                    LDX  #13
+d02f 02                          IDIV
+d030 8f                          XGDX
+d031 1a 83 02 bc                 CPD  #700
+d035 2e 2d                       BGT  EIGHT
+d037 1a 83 02 58                 CPD  #600
+d03b 2e 2e                       BGT  SEVEN
+d03d 1a 83 01 f4                 CPD  #500
+d041 2e 2f                       BGT  SIX
+d043 1a 83 01 90                 CPD  #400
+d047 2e 30                       BGT  FIVE
+d049 1a 83 01 2c                 CPD  #300
+d04d 2e 31                       BGT  FOUR
+d04f 1a 83 00 c8                 CPD  #200
+d053 2e 32                       BGT  THREE
+d055 1a 83 00 64                 CPD  #100
+d059 2e 33                       BGT  TWO
+d05b 1a 83 00 00                 CPD  #0
+d05f 2e 34                       BGT  ONE
+d061 20 39                       BRA  ZERO
+d063 3f                          SWI
+                                 
+d064 86 ff              EIGHT:   LDAA #255
+d066 b7 10 04                    STAA PORTB
+d069 20 9f              RANGE:   BRA  MAIN
+d06b 86 fe              SEVEN:   LDAA #254
+d06d b7 10 04                    STAA PORTB
+d070 20 f7                       BRA  RANGE
+d072 86 fc              SIX:     LDAA #252
+d074 b7 10 04                    STAA PORTB
+d077 20 f0                       BRA  RANGE
+d079 86 f8              FIVE:    LDAA #248
+d07b b7 10 04                    STAA PORTB
+d07e 20 e9                       BRA  RANGE
+d080 86 f0              FOUR:    LDAA #240
+d082 b7 10 04                    STAA PORTB
+d085 20 e2                       BRA  RANGE
+d087 86 e0              THREE:   LDAA #224
+d089 b7 10 04                    STAA PORTB
+d08c 20 db                       BRA  RANGE
+d08e 86 c0              TWO:     LDAA #192
+d090 b7 10 04                    STAA PORTB
+d093 20 d4                       BRA  RANGE
+d095 86 80              ONE:     LDAA #128
+d097 b7 10 04                    STAA PORTB
+d09a 20 cd                       BRA  RANGE
+d09c 86 00              ZERO:    LDAA #0
+d09e b7 10 04                    STAA PORTB
+d0a1 20 c6                       BRA  RANGE
+                                 
+d0a3 b6 db 00           PRINT:   LDAA $DB00
+d0a6 bd ff b5                    JSR  OUTRHLF
+d0a9 b6 db 01                    LDAA $DB01
+d0ac bd ff b5                    JSR  OUTRHLF
+d0af b6 db 02                    LDAA $DB02
+d0b2 bd ff b5                    JSR  OUTRHLF
+                                 ;LDX  #RESULT
+                                 ;JSR  OUTSTRG
+d0b5 bd ff c4                    JSR  OUTCRLF
+d0b8 39                          RTS
+                                 
+d0b9 fc d0 00           BINBCD:  LDD  TEMP
+d0bc ce 27 10                    LDX  #$2710
+d0bf 02                          IDIV
+d0c0 8f                          XGDX
+d0c1 f7 db 00                    STAB $DB00
+d0c4 8f                          XGDX
+d0c5 ce 03 e8                    LDX  #$3E8
+d0c8 02                          IDIV
+d0c9 8f                          XGDX
+d0ca f7 db 01                    STAB $DB01
+d0cd 8f                          XGDX
+d0ce ce 00 64                    LDX  #$64
+d0d1 02                          IDIV
+d0d2 8f                          XGDX
+d0d3 f7 db 02                    STAB $DB02
+d0d6 8f                          XGDX
+d0d7 ce 00 0a                    LDX  #$A
+d0da 02                          IDIV
+d0db 8f                          XGDX
+d0dc f7 db 03                    STAB $DB03
+d0df 8f                          XGDX
+d0e0 f7 db 04                    STAB $DB04
+d0e3 39                          RTS
+                                 
+
+Executed: Tue Nov 07 11:27:07 2017
+Total cycles: 570, Total bytes: 285
+Total errors: 0, Total warnings: 0

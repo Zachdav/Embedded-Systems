@@ -1,0 +1,102 @@
+
+AS11, an absolute assembler for Motorola MCU's, version 1.2h
+
+                        ;Including a few of the BUFFALO utility subroutines for the program.
+ffb8                    OUTA     EQU  $FFB8
+ffc7                    OUTSTRG  EQU  $FFC7
+ffca                    OUTSTRGO EQU  $FFCA
+ffb5                    OUTRHLF  EQU  $FFB5
+ffc4                    OUTCRLF  EQU  $FFC4
+ffcd                    INCHAR   EQU  $FFCD
+                        
+                        ;Defining useful program messages.
+                        *Message1 FCC  "Enter a Character: "
+                        *         FCB  $04
+                        *Message2 FCC  "The Voltage is: "
+                        
+                        *Message1 FCC  "."
+                        *         FCB  $04
+                        *Message2 FCC  " Volts."
+0000 45 6e 74 65 72 20  Message1 FCC  "Enter A Voltage From 0 - 5000 mV: "
+     41 20 56 6f 6c 74
+     61 67 65 20 46 72
+     6f 6d 20 30 20 2d
+     20 35 30 30 30 20
+     6d 56 3a 20
+0022 04                          FCB  $04
+0023                    Message2 FCC  ""
+0023 04                          FCB  $04
+                                 
+                        	 ;This is the main of the program.  Each subroutine that follows
+                                 ;is labeled corresponding to each part of the lab.
+                                 ;To test a part of the lab you simply change the label following
+                                 ;jump to subroutine.
+d002                             ORG  $D002
+d002 bd d0 7e           Main     JSR  Part3
+d005 3f                          SWI
+                                 END
+                        
+                                 ;Prints the string stored in Message1 and waits for the user to
+                                 ;input a character.  It then in responce returns the string in
+                                 ;Message2.  The procedure is in an infinite loop.
+d006 ce 00 00           Part1:   LDX  #Message1
+d009 bd ff c7                    JSR  OUTSTRG
+d00c bd ff cd                    JSR  INCHAR
+d00f ce 00 23                    LDX  #Message2
+d012 bd ff c7                    JSR  OUTSTRG
+d015 8d ef                       BSR  Part1
+                        
+                                 ;Print the right nibble of DB01 and DB02, then print the "." string,
+                                 ;then the right nibble of DB03 and DB04, followed finally by the
+                                 ;string " Volts."
+d017 b6 db 01           Part2:   LDAA $DB01
+d01a bd ff b5                    JSR  OUTRHLF
+d01d b6 db 02                    LDAA $DB02
+d020 bd ff b5                    JSR  OUTRHLF
+d023 ce 00 00                    LDX  #Message1
+d026 bd ff ca                    JSR  OUTSTRGO
+d029 b6 db 03                    LDAA $DB03
+d02c bd ff b5                    JSR  OUTRHLF
+d02f b6 db 04                    LDAA $DB04
+d032 bd ff b5                    JSR  OUTRHLF
+d035 ce 00 23                    LDX  #Message2
+d038 bd ff ca                    JSR  OUTSTRGO
+d03b bd ff c4                    JSR  OUTCRLF
+                                 
+                                 ;Incrementing DB01-DB04 the show a second example of the problem.
+d03e 7c db 01                    INC  $DB01
+d041 7c db 02                    INC  $DB02
+d044 7c db 03                    INC  $DB03
+d047 7c db 04                    INC  $DB04
+                        
+                                 ;Print the right nibble of DB01 and DB02, then print the "." string,
+                                 ;then the right nibble of DB03 and DB04, followed finally by the
+                                 ;string " Volts."
+d04a b6 db 01                    LDAA $DB01
+d04d bd ff b5                    JSR  OUTRHLF
+d050 b6 db 02                    LDAA $DB02
+d053 bd ff b5                    JSR  OUTRHLF
+d056 ce 00 00                    LDX  #Message1
+d059 bd ff ca                    JSR  OUTSTRGO
+d05c b6 db 03                    LDAA $DB03
+d05f bd ff b5                    JSR  OUTRHLF
+d062 b6 db 04                    LDAA $DB04
+d065 bd ff b5                    JSR  OUTRHLF
+d068 ce 00 23                    LDX  #Message2
+d06b bd ff ca                    JSR  OUTSTRGO
+d06e bd ff c4                    JSR  OUTCRLF
+                                 
+                                 ;Decrementing DB01-DB04 to return it to it original value.
+d071 7a db 01                    DEC  $DB01
+d074 7a db 02                    DEC  $DB02
+d077 7a db 03                    DEC  $DB03
+d07a 7a db 04                    DEC  $DB04
+d07d 39                          RTS
+                                 
+d07e ce 00 00           Part3:   LDX #Message1
+d081 bd ff c7                    JSR OUTSTRG
+d084 39                          RTS
+
+Executed: Mon Oct 09 17:38:36 2017
+Total cycles: 245, Total bytes: 167
+Total errors: 0, Total warnings: 0

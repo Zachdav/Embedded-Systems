@@ -1,0 +1,316 @@
+
+AS11, an absolute assembler for Motorola MCU's, version 1.2h
+
+                        ;This bank of code is used to define all the constants that will be used in the
+                        ;following program. It defines the address of all the registers need for input
+                        ;capture as well as all the values those address will be set to. Some other
+                        ;important constants are defined to avoid the use of random numbers in the
+                        ;program and the BUFFALO provided subroutines have also had there address defined
+                        ;as well.
+0004                    IC1I            EQU   %00000100 ;Set the constant IC1I to 4.
+0004                    OC1F            EQU   %00000100 ;Set the constant OC1F to 4.
+0010                    EDGE            EQU   %00010000 ;Set the constant EDGE to 16.
+001e                    MEASUREMENTS    EQU   30        ;Set the constant MEASUREMENTS to 30.
+0000                    FIRST           EQU   00        ;Set the constant FIRST to 00.
+0001                    SECOND          EQU   01        ;Set the constant SECOND to 01.
+001f                    DIVIDER         EQU   31        ;Set the constant DIVIDER to 31.
+0064                    SCALAR          EQU   100       ;Set the constant DIVIDER to 100.
+fc04                    CLOCK           EQU   $FC04     ;Set the constant CLOCK to 64,516.
+ffff                    MAXVALUE        EQU   $FFFF     ;Set the constant MAXVALUE to 65,535.
+1021                    TCTL2           EQU   $1021     ;This is the address of the T Control.
+1022                    TMSK1           EQU   $1022     ;This is the address of the T Mask.
+1023                    TFLG1           EQU   $1023     ;This is the address of the T Flag.
+00e8                    IC1VECTOR       EQU   $00E8     ;This is the address of the IC1 sudo-vector.
+1010                    RESULT          EQU   $1010     ;This is the address of the TIC at interrupt.
+8000                    MEMORYBANK      EQU   $8000     ;Set the starting address of the program variables.
+d000                    PROGRAMBANK     EQU   $D000     ;Set the starting address of the program itself.
+dfff                    STACKBANK       EQU   $DFFF     ;Set the starting address of the stack pointer.
+db01                    THOUSAND        EQU   $DB01     ;The memory address of the thousands digit.
+db02                    HUNDRED         EQU   $DB02     ;The memory address of the hundreds digit.
+db03                    TEN             EQU   $DB03     ;The memory address of the tens digit.
+db04                    ONE             EQU   $DB04     ;The memory address of the ones digit.
+ffb8                    OUTA            EQU   $FFB8     ;This subroutine outputs a character.
+ffc4                    OUTCRLF         EQU   $FFC4     ;This subroutine outputs a carriage return.
+ffc7                    OUTSTRG         EQU   $FFC7     ;This subroutine outputs index register X.
+ffb5                    OUTRHLF         EQU   $FFB5     ;This outputs the right nibble of a memory byte.
+ffca                    OUTSTRGO        EQU   $FFCA     ;This outputs index register X without a return.
+                        
+                        ;These messages are using in the output of the program to make the results more
+                        ;readable to the user.  It names what the result is and its units.
+0000 41 76 65 72 61 67  PROMPT          FCC   "Average RPM: "
+     65 20 52 50 4d 3a
+     20
+000d 04                                 FCB   $04
+                                        
+000e 20 52 50 4d 28 73  UNITS           FCC   " RPM(s)."
+     29 2e
+0016 04                                 FCB   $04
+                                        
+                        ;There are two subroutines in this program that end with a couple of branching
+                        ;statements.  If for some reason the code does not branch correctly these
+                        ;messages are printed and there is a software interrupt to help with debugging.
+0017 45 72 72 6f 72 20  ERROR1          FCC   "Error in the CAPTURE subroutine."
+     69 6e 20 74 68 65
+     20 43 41 50 54 55
+     52 45 20 73 75 62
+     72 6f 75 74 69 6e
+     65 2e
+0037 04                                 FCB   $04
+                                        
+0038 45 72 72 6f 72 20  ERROR2          FCC   "Error in the PWIDTH subroutine."
+     69 6e 20 74 68 65
+     20 50 57 49 44 54
+     48 20 73 75 62 72
+     6f 75 74 69 6e 65
+     2e
+0057 04                                 FCB   $04
+                        
+                        ;This is the address of the sudo-vector that corresponds to Input Capture 1
+                        ;interrupts.  When an interrupt occurs we want the program to begin running the
+                        ;CAPTURE subroutine.
+00e8                                    ORG   IC1VECTOR ;Set the origin address to the value of IC1VECTOR.
+00e8 7e d0 48                           JMP   CAPTURE   ;Jump to the CAPTURE subroutine.
+                        
+                        ;These are all of the variables that will be needed to run this program and all
+                        ;are stored starting at memory address $8000.
+8000                                    ORG   MEMORYBANK ;Set the address origin to $8000.
+8000                    T1              RMB   2          ;This is the value of TIC on the first rising edge.
+8002                    T2              RMB   2          ;This is the value of TIC on the second rising edge.
+8004                    COUNTER         RMB   1          ;This is a counter that tracks 30 RPM measurements.
+8005                    OFFSET          RMB   1          ;This offset determines whether to use T1 or T2.
+8006                    PULSE           RMB   2          ;This is the difference between T1 and T2.
+8008                    RPMVALUE        RMB   2          ;The is the pulse converted into RPMs.
+800a                    RPMSUM          RMB   2          ;This is a sum of all the measured RPMs.
+800c                    AVGRPM          RMB   2          ;This is the average of all the RPM measurements.
+800e                    NUMBERRPM       RMB   1          ;This is a counter of the number of RPM measures.
+                        
+d000                                    ORG   PROGRAMBANK ;This is the starting address of our program.
+d000 8e df ff                           LDS   #STACKBANK  ;This is the starting address of our stack pointer.
+                        
+                        ;We wanted to take 30 RPM measurements in our program. This limits our max RPM
+                        ;to be measured to 2100 RPMs (2100*30 = 63000), but the motors max is 2000 RPMs
+                        ;so it wont be an issue. We also wanted to initialize RPMSUM, NUMBERRPM, and
+                        ;OFFSET at the beginning of the program to insure there is no random garbage
+                        ;stored there at the start.
+d003 86 1e                              LDAA  #MEASUREMENTS ;Load ACC A with 30.
+d005 b7 80 04                           STAA  COUNTER       ;Store ACC A into the variable counter.
+d008 cc 00 00                           LDD   #0000         ;Load ACC D with 0.
+d00b fd 80 0a                           STD   RPMSUM        ;Store ACC D into RPMSUM.
+d00e fd 80 0e                           STD   NUMBERRPM     ;Store ACC D into NUMBERRPM.
+d011 b7 80 05                           STAA  OFFSET        ;Store ACC A into OFFSET.
+                        
+                        ;This is the MAIN of our program.  Here we initialize our Input Capture 1 by
+                        ;calling the IC1INIT subroutine and wait twice for the two rising edges. In
+                        ;between the two waits we change the value of offset which toggles whether the
+                        ;TIC is stored in T1 or T2.  After returning from the second interrupt we call
+                        ;the reset subroutine and decrement our counter. Finally we will loop back
+                        ;through the MAIN 30 total times.  After completing the 30th measurement we
+                        ;average the RPM measuremts, smooth/calibrate the value, change it to binary
+                        ;coded decimal, and print it out the terminal.
+d014 bd d0 37                           JSR   IC1INIT   ;Jump to IC1INIT subroutine.
+d017 3e                 MAIN:           WAI             ;Waiting for an interrupt.
+d018 86 01                              LDAA  #SECOND   ;Load ACC A with 1.
+d01a b7 80 05                           STAA  OFFSET    ;Store ACC A into the OFFSET variable.
+d01d 3e                                 WAI             ;Waiting for an interrupt.
+d01e bd d0 6d                           JSR   RESET     ;Jump to the RESET subroutine.
+d021 f6 80 04                           LDAB  COUNTER   ;Load ACC B with COUNTER.
+d024 5a                                 DECB            ;Decrement the value of COUNTER.
+d025 f7 80 04                           STAB  COUNTER   ;Store the decremented value back into COUNTER.
+d028 26 ed                              BNE   MAIN      ;If the counter is not 0, loop back to MAIN.
+d02a bd d0 cb                           JSR   AVRPM     ;Jump to the AVRPM subroutine.
+d02d bd d0 d6                           JSR   SMOOTHING ;Jump to the SMOOTHING subroutine.
+d030 bd d0 e5                           JSR   BINBCD    ;Jump to the BINBCD subroutine.
+d033 bd d1 07                           JSR   PRINT     ;Jump to the PRINT subroutine.
+d036 3f                                 SWI             ;Software interrupt.
+                                        END             ;The end of out program.
+                        
+                        ;This subroutine is only run once in our program at the beginning and its
+                        ;purpose is to initialize Input Capture 1 to be prepared for an interrupt. We set
+                        ;the T Flag and T Mask to 4 or making the third bit from the right to 1 to use
+                        ;Input Capture 1.  We then set the T Control to 16 or the EDGE1 A and B to 01.
+                        ;That means that Input Capture 1 is going to wait on a Rising Edge.
+d037 0e                 IC1INIT:        CLI             ;Clearing the interrupt mask.
+d038 86 04                              LDAA  #OC1F     ;Load ACC A with the value in OC1F (4).
+d03a b7 10 23                           STAA  TFLG1     ;Store that value in T Flag.
+d03d 86 04                              LDAA  #IC1I     ;Load ACC A with the value in IC1I (4).
+d03f b7 10 22                           STAA  TMSK1     ;Store that value in T Mask.
+d042 86 10                              LDAA  #EDGE     ;Load ACC A with the value in EDGE (16).
+d044 b7 10 21                           STAA  TCTL2     ;Store that value in T Control.
+d047 39                                 RTS             ;Return from the subroutine.
+                        
+                        ;This subroutine is what is called when the program is interrupted in the MAIN.
+                        ;That means this subroutine is called every time a rising edge occurs during
+                        ;wait. The subroutine then loads the TIC at that rising edge, checks OFFSET to
+                        ;see if this value is intended for T1 or T2, and branches to the correlated
+                        ;subroutine.
+d048 fe 10 10           CAPTURE:        LDX   RESULT   ;Load IND X with the value of the TIC at interrupt.
+d04b 86 01                              LDAA  #SECOND  ;Load ACC A with 1.
+d04d b1 80 05                           CMPA  OFFSET   ;Compare ACC A to OFFSET by subtraction.
+d050 26 09                              BNE   BRANCHT1 ;If the compare yields non-zero, branch to T1.
+d052 27 10                              BEQ   BRANCHT2 ;If the compare yields zero, branch to T2.
+d054 ce 00 17                           LDX   #ERROR1  ;If both fail (unlikely) and error message is loaded.
+d057 bd ff c7                           JSR   OUTSTRG  ;Prints the error message to the terminal.
+d05a 3f                                 SWI            ;Software Interrupt.
+                        
+                        ;If this is the first interrupt this subroutine is called by capture. It stores
+                        ;the value of the TIC at the time of the interrupt into T1 and clears the T Flag
+                        ;by setting the corresponding bit to 1 and returns back to the MAIN from the
+                        ;interrupt.
+d05b ff 80 00           BRANCHT1:       STX   T1    ;Store the value of IND X into T1.
+d05e 86 04                              LDAA  #OC1F ;Loads ACC A with the value in OC1F (4).
+d060 b7 10 23                           STAA  TFLG1 ;Stores the value of ACC A into the T Flag.
+d063 3b                                 RTI         ;Returns from the interrupt.
+                        
+                        ;If this is the second interrupt this subroutine is called by capture. It stores
+                        ;the value of the TIC at the time of the interrupt into T2 and clears the T Flag
+                        ;by setting the corresponding bit to 1 and returns back to the MAIN from the
+                        ;interrupt.
+d064 ff 80 02           BRANCHT2:       STX   T2    ;Store the value of IND X into T2.
+d067 86 04                              LDAA  #OC1F ;Loads ACC A with the value in OC1F (4).
+d069 b7 10 23                           STAA  TFLG1 ;Stores the value of ACC A into the T Flag.
+d06c 3b                                 RTI         ;Returns from the interrupt.
+                        
+                        ;This subroutine is called by the MAIN when the first and second interrupts have
+                        ;already occured. It resets the OFFSET value back to 0 so the next RPM measurement
+                        ;will start over at T1. It then jumps to calculate PWIDTH, RPM, and SUM.
+d06d 86 00              RESET:          LDAA  #FIRST ;Loads ACC A with 0.
+d06f b7 80 05                           STAA  OFFSET ;Stores ACC A into OFFSET.
+d072 bd d0 7c                           JSR   PWIDTH ;Jumps to the PWIDTH subroutine.
+d075 bd d0 a5                           JSR   RPM    ;Jumps to the RPM subroutine.
+d078 bd d0 ba                           JSR   SUM    ;Jumps to the SUM subroutine.
+d07b 39                                 RTS          ;Return from the subroutine.
+                        
+                        ;This subroutine is called by RESET and that means that it is called everytime
+                        ;both T1 and T2 are measured.  It determines whether T1 or T2 are larger and
+                        ;branches to one of two equations based on that state.
+d07c fc 80 00           PWIDTH          LDD   T1       ;Loads ACC D with the value in T1.
+d07f 1a b3 80 02                        CPD   T2       ;Compares T1 and T2 with subtraction.
+d083 2e 13                              BGT   TWOCYCLE ;If the compare is more than zero, it calls TWOCYCLE.
+d085 2d 07                              BLT   ONECYCLE ;If the compare is less than zero, it calls ONECYCLE.
+d087 ce 00 38                           LDX   #ERROR2  ;If both fail (unlikely) and error message is loaded.
+d08a bd ff c7                           JSR   OUTSTRG  ;Prints the error message to the terminal.
+d08d 3f                                 SWI            ;Software Interrupt.
+                                        
+                        ;This subroutine is called by PWIDTH to calculate the value of the PULSE when T1
+                        ;and T2 are both captured within one cycle. In other words this is used if the
+                        ;TIC does not wrap around between T1 and T2 captures. It then subtracts T1 from
+                        ;T2 and stores that in pulse.
+d08e fc 80 02           ONECYCLE:       LDD   T2    ;Loads ACC D with the value in T2.
+d091 b3 80 00                           SUBD  T1    ;Subtracts T1 from the value in ACC D.
+d094 fd 80 06                           STD   PULSE ;Stores the value in ACC D into PULSE.
+d097 39                                 RTS         ;Return from the subroutine.
+                        
+                        ;This subroutine is called by PWIDTH to calculate the value of the PULSE when T1
+                        ;and T2 are captured within two cycles. In other words this is used if the
+                        ;TIC does wrap around between T1 and T2 captures. It then subtracts T1 from
+                        ;2-byte max and adds T2 and stores that in pulse. It is essentially the
+                        ;difference between T1 and T2 while subtracting away the wrap of $FFFF.
+d098 cc ff ff           TWOCYCLE:       LDD   #MAXVALUE ;Loads ACC D with 65,535.
+d09b b3 80 00                           SUBD  T1        ;Subtracts the value in T1 from ACC D.
+d09e f3 80 02                           ADDD  T2        ;Adds the value in T2 to ACC D.
+d0a1 fd 80 06                           STD   PULSE     ;Stores the value in ACC D into PULSE.
+d0a4 39                                 RTS             ;Return from the subroutine.
+                        
+                        ;This subroutine is called by the RESET function which means that it is called
+                        ;every time that T1 and T2 have been captured. The previous subroutine used those
+                        ;measurements to calculate the value of PULSE, or the number of clock cycles
+                        ;between T1 and T2. It then uses a ratio equal to 2 Million/PULSE to calculate
+                        ;the RPMVALUE.  This is done because 2 Million will not fit into a 2-byte number.
+                        ;We divide both the numerator and the denominator by 31 giving us 64,516/PULSE.
+                        ;Because 2 Million and PULSE will not evenly divide by 31 this is where we will
+                        ;lose our accuracy.
+d0a5 fc 80 06           RPM:            LDD   PULSE    ;Load ACC D with the value of PULSE.
+d0a8 ce 00 1f                           LDX   #DIVIDER ;Load IND X with the value 31.
+d0ab 02                                 IDIV           ;Divide ACC D by IND X.
+d0ac ff 80 06                           STX   PULSE    ;Store IND X (Result) back into PULSE.
+d0af cc fc 04                           LDD   #CLOCK   ;Load ACC D with 64,516.
+d0b2 fe 80 06                           LDX   PULSE    ;Load IND X with the value of PULSE.
+d0b5 02                                 IDIV           ;Divide ACC D by IND X.
+d0b6 ff 80 08                           STX   RPMVALUE ;Store IND X (Result) into RPMVALUE.
+d0b9 39                                 RTS            ;Return from the subroutine.
+                        
+                        ;This subroutine is called by RESET which means that it is called every time T1
+                        ;and T2 have been captured.  Its PULSE and RPMVALUE have already been calculated
+                        ;which means all that is left to do is add the measurement to the running sum to
+                        ;later be divided by the number of measurements for an average.
+d0ba fc 80 08           SUM:            LDD   RPMVALUE  ;Load ACC D with the value of RPMVALUE.
+d0bd f3 80 0a                           ADDD  RPMSUM    ;Add RPMSUM to the value of ACC D.
+d0c0 fd 80 0a                           STD   RPMSUM    ;Store ACC D back into RPMSUM.
+d0c3 fc 80 0e                           LDD   NUMBERRPM ;Load ACC D with the value of NUMBERRPM.
+d0c6 5c                                 INCB            ;Increment ACC B by 1.
+d0c7 fd 80 0e                           STD   NUMBERRPM ;Store the value of ACC D back into NUMBERRPM.
+d0ca 39                                 RTS             ;Return from the subroutine.
+                        
+                        ;This subroutine is called by the MAIN and is only called once all 30, or number
+                        ;equal to COUNTER, measurements have been taken because we only want to calculate
+                        ;the average RPM once we have all the measurements. The subroutine divides the
+                        ;running RPMSUM by the NUMBERRPM counter and stores that value in AVGRPM. Again
+                        ;it is likely that we will lose some accuracy to truncation here.
+d0cb fc 80 0a           AVRPM:          LDD   RPMSUM    ;Load ACC D with the value of RPMSUM.
+d0ce fe 80 0e                           LDX   NUMBERRPM ;Load IND X with the value of NUMBERRPM.
+d0d1 02                                 IDIV            ;Divide ACC D by IND X.
+d0d2 ff 80 0c                           STX   AVGRPM    ;Store IND X (Result) into AVGRRPM.
+d0d5 39                                 RTS             ;Return from the subroutine.
+                        
+                        ;This subroutine is called after all the measurements have been captured and the
+                        ;average RPM has been calculted.  As mentioned earlier all of the divisions are
+                        ;likely to cause a lose of accuracy and this smoothing subroutine essentially
+                        ;truncates the 2 least significant digits as they are not accurate, due to these
+                        ;divisions. We attempted to do a calibration formula but due to the size of
+                        ;AVGRPM and limitations of assembly it only made the measurements less accurate.
+                        ;This is an imperfect solution to the problem. If you intend on measuring a
+                        ;frequency using non-zero 10s and 1s digits the JSR to this subroutine should be
+                        ;commented out and even still the returned values will be imperfect.
+d0d6 fc 80 0c           SMOOTHING:      LDD    AVGRPM   ;Load ACC D with the value of AVGRPM.
+d0d9 ce 00 64                           LDX    #SCALAR  ;Load IND X with the value of DIVIDER.
+d0dc 02                                 IDIV            ;Divide ACC D with IND X.
+d0dd 8f                                 XGDX            ;Swap IND X with ACC D.
+d0de 86 64                              LDAA   #SCALAR  ;Load ACC A with the value of DIVIDER.
+d0e0 3d                                 MUL             ;Multiply the value of A with B
+d0e1 fd 80 0c                           STD    AVGRPM   ;Store ACC D (Result) into AVGRPM.
+d0e4 39                                 RTS             ;Return from the subroutine.
+                        
+                        ;This subroutine is called once all the calculations are done by the MAIN and it
+                        ;is used to code the AVGRPM in hexidecimal into decimal so that it can later be
+                        ;printed out the terminal in decimal for the user.
+d0e5 fc 80 0c           BINBCD:         LDD    AVGRPM   ;Load ACC D with the value of AVGRPM.
+d0e8 ce 03 e8                           LDX    #$3E8    ;Load IND X with the value of 1000.
+d0eb 02                                 IDIV            ;Divide ACC D by IND X.
+d0ec 8f                                 XGDX            ;Swap IND X with ACC D.
+d0ed f7 db 01                           STAB   THOUSAND ;Store the right nibble of ACC D into address $DB01.
+d0f0 8f                                 XGDX            ;Swap IND X with ACC D.
+d0f1 ce 00 64                           LDX    #$64     ;Load IND X with the value of 100.
+d0f4 02                                 IDIV            ;Divide ACC D by IND X.
+d0f5 8f                                 XGDX            ;Swap IND X with ACC D.
+d0f6 f7 db 02                           STAB   HUNDRED  ;Store the right nibble of ACC D into address $DB02.
+d0f9 8f                                 XGDX            ;Swap IND X with ACC D.
+d0fa ce 00 0a                           LDX    #$A      ;Load IND X with the value of 10.
+d0fd 02                                 IDIV            ;Divide ACC D by IND X.
+d0fe 8f                                 XGDX            ;Swap IND X with ACC D.
+d0ff f7 db 03                           STAB   TEN      ;Store the right nibble of ACC D into address $DB03.
+d102 8f                                 XGDX            ;Swap IND X with ACC D.
+d103 f7 db 04                           STAB   ONE      ;Store the right nibble of ACC D into address $DB04.
+d106 39                                 RTS             ;Return from the subroutine.
+                        
+                        ;This subroutine is called by the main after everything has been calculated and
+                        ;the AVGRPM has been converted to binary coded decimal. The subroutine echos the
+                        ;right nibble of each of the four address from the BINBCD subroutine to the
+                        ;terminal, which represents each of the four digits in base 10 of AVGRPM.
+d107 ce 00 00           PRINT:          LDX    #PROMPT  ;Load IND X with the message at PROMPT.
+d10a bd ff ca                           JSR    OUTSTRGO ;Jump to the OUTSTRGO subroutine to echo IND X.
+d10d b6 db 01                           LDAA   THOUSAND ;Load ACC A with the value at $DB01.
+d110 bd ff b5                           JSR    OUTRHLF  ;Jump to the OUTRHLF subroutine to echo ACC A LB.
+d113 b6 db 02                           LDAA   HUNDRED  ;Load ACC A with the value at $DB01.
+d116 bd ff b5                           JSR    OUTRHLF  ;Jump to the OUTRHLF subroutine to echo ACC A LB.
+d119 b6 db 03                           LDAA   TEN      ;Load ACC A with the value at $DB01.
+d11c bd ff b5                           JSR    OUTRHLF  ;Jump to the OUTRHLF subroutine to echo ACC A LB.
+d11f b6 db 04                           LDAA   ONE      ;Load ACC A with the value at $DB01.
+d122 bd ff b5                           JSR    OUTRHLF  ;Jump to the OUTRHLF subroutine to echo ACC A LB.
+d125 ce 00 0e                           LDX    #UNITS   ;Load IND X with the message at UNITS.
+d128 bd ff ca                           JSR    OUTSTRGO ;Jump to the OUTSTRGO subroutine to echo IND X.
+d12b bd ff c4                           JSR    OUTCRLF  ;Jumps to the OUTCRTL subroutine to echo a return.
+d12e 39                                 RTS             ;Return from the subroutine.
+
+Executed: Tue Dec 05 17:48:54 2017
+Total cycles: 879, Total bytes: 394
+Total errors: 0, Total warnings: 0

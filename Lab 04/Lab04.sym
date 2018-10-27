@@ -1,0 +1,12 @@
+inchar     ffcd
+main       d002
+message1   0000
+message2   0023
+outa       ffb8
+outcrlf    ffc4
+outrhlf    ffb5
+outstrg    ffc7
+outstrgo   ffca
+part1      d006
+part2      d017
+part3      d07e
